@@ -1,0 +1,12 @@
+{
+  "name": "assignment5-testing-pipeline",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.js",
+    "test:unit": "node --test --experimental-test-coverage --test-reporter=spec test/unit.test.js",
+    "test:integration": "node --test --test-reporter=junit test/integration.test.js > junit.xml",
+    "test": "npm run test:unit && npm run test:integration"
+  },
+  "engines": {"node": ">=20"}
+}
