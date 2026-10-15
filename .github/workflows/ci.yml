@@ -1,0 +1,118 @@
+name: Build-Test-Release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-artifact
+          path: dist/
+  test-unit:
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      TEST_ENV: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Unit tests with coverage gate
+        shell: bash
+        run: |
+          set -o pipefail
+          node --test --experimental-test-coverage --test-coverage-lines=80 --test-coverage-functions=80 --test-coverage-branches=80 test/unit.test.js 2>&1 | tee coverage-report.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage-report.txt
+          if-no-files-found: warn
+  test-matrix:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['20', '22']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - run: npm run test:unit
+  test-integration:
+    needs: [test-unit, test-matrix]
+    runs-on: ubuntu-latest
+    env:
+      TEST_ENV: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-artifact
+          path: dist/
+      - name: Integration tests (JUnit)
+        run: npm run test:integration
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: junit-report
+          path: junit.xml
+          if-no-files-found: warn
+  deploy-staging:
+    needs: test-integration
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-artifact
+          path: dist/
+      - name: Staging release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release create "staging-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" dist/* --prerelease --notes "Staging release after passing all tests"
+  deploy-production:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: write
+    env:
+      TEST_ENV: prod
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-artifact
+          path: dist/
+      - name: Production release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release create "prod-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" dist/* --notes "Production release after approval and successful tests"
