@@ -116,3 +116,29 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: gh release create "prod-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" dist/* --notes "Production release after approval and successful tests"
+
+  report-test-failure:
+    name: Create issue on test failure
+    needs: [test-unit, test-matrix, test-integration]
+    if: ${{ always() && (needs.test-unit.result == 'failure' || needs.test-matrix.result == 'failure' || needs.test-integration.result == 'failure') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Create or update CI failure issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          title="CI test failure: ${GITHUB_RUN_ID}"
+          body=$(printf 'Automated test failure detected.\n\nWorkflow: %s\nCommit: %s\nUnit: %s\nMatrix: %s\nIntegration: %s\n' \
+            "$RUN_URL" "$COMMIT_SHA" \
+            '${{ needs.test-unit.result }}' \
+            '${{ needs.test-matrix.result }}' \
+            '${{ needs.test-integration.result }}')
+          gh issue create --title "$title" --body "$body"
