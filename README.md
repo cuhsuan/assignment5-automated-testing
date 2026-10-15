@@ -1,6 +1,6 @@
 # Assignment 5 — Outstanding CI/CD Pipeline
 
-![Build-Test-Release](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg)
+[![Build-Test-Release](https://github.com/cuhsuan/assignment5-automated-testing/actions/workflows/ci.yml/badge.svg)](https://github.com/cuhsuan/assignment5-automated-testing/actions/workflows/ci.yml)
 
 Build → Unit Test + Matrix Test → Integration Test → Staging → Production (manual approval).
 
